@@ -4,4 +4,8 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return "でぷろいかんりょう"
+    return "でぷろいかんりょうしました"
+
+@app.route('/health')
+def health():
+    return {'status': 'healthy'}, 200
