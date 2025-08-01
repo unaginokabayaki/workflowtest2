@@ -15,11 +15,11 @@ flask --app main run
 # 方法2: Dockerで実行
 
 1. Dockerfileと一緒にビルド
-docker build -t my-flask-app .
+docker build -t my-flask-workflowtest2-app:1.0.0 .
 
 2. コンテナを実行
 PORTを5000に設定して実行
-docker run -p 5000:5000 -e PORT=5000 my-flask-app
+docker run -p 5000:5000 -e PORT=5000 my-flask-workflowtest2-app:1.0.0
 
 # 方法3: Gunicornで本番環境風に実行
 
