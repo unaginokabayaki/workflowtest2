@@ -1,0 +1,76 @@
+name: Deploy Flask App to Cloud Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'デプロイ環境を選択'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      deploy_message:
+        description: 'デプロイメッセージ (オプション)'
+        required: false
+        type: string
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GAR_LOCATION: asia-northeast2 # Google Artifact Registry location
+  SERVICE: flask-workflowtest2-${{ github.event.inputs.environment }} # 環境別のサービス名
+  REGION: asia-northeast2 # Cloud Run region
+
+jobs:
+  deploy:
+    # Add 'id-token' with the intended permissions for workload identity federation
+    permissions:
+      contents: read      # リポジトリの内容を読み取り
+      id-token: write     # OIDC トークンを生成して外部認証に使用
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4  # リポジトリのコードをチェックアウト
+
+      - name: デプロイ情報を表示
+        run: |
+          echo "🚀 デプロイ開始"
+          echo "環境: ${{ github.event.inputs.environment }}"
+          echo "ブランチ: ${{ github.ref_name }}"
+          echo "コミット: ${{ github.sha }}"
+          if [ "${{ github.event.inputs.deploy_message }}" != "" ]; then
+            echo "メッセージ: ${{ github.event.inputs.deploy_message }}"
+          fi
+      
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v2'  # GCPの認証を実施
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'  # サービスアカウントキーを使用
+
+      - name: Docker Auth
+        id: docker-auth
+        uses: 'docker/login-action@v3'  # Dockerレジストリへのログイン
+        with:
+          registry: ${{ env.GAR_LOCATION }}-docker.pkg.dev  # GCP Artifact Registry のURL
+          username: _json_key  # JSONキーによる認証
+          password: ${{ secrets.GCP_SA_KEY }}  # サービスアカウントキー
+
+      - name: Build and Push Container
+        run: |-
+          # Dockerイメージをビルドし、GCP Artifact Registry にプッシュ
+          docker build -t "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }}" ./
+          docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }}"
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2  # Cloud Run にデプロイ
+        with:
+          service: ${{ env.SERVICE }}  # Cloud Run サービス名
+          region: ${{ env.REGION }}  # デプロイ先リージョン
+          image: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.SERVICE }}/${{ env.SERVICE }}:${{ github.sha }}  # 使用するDockerイメージ
+
+      - name: Show Output
+        run: echo ${{ steps.deploy.outputs.url }}  # デプロイ先URLの出力
