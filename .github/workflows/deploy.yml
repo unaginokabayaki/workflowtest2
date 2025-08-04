@@ -48,6 +48,7 @@ jobs:
         id: auth
         uses: 'google-github-actions/auth@v2'  # GCPの認証を実施
         with:
+          token_format: 'access_token'
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}  # Workload Identity Provider
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}      # サービスアカウントのメールアドレス
 
