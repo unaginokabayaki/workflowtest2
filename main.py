@@ -4,7 +4,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    return "でぷろいかんりょうしました"
+    return "<h1>Cloud Run Flask App</h1><p>デプロイが成功しました！</p>"
 
 @app.route('/health')
 def health():
