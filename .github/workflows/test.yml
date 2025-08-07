@@ -1,0 +1,75 @@
+name: Deploy Flask App to Cloud test
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'デプロイ環境を選択'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      deploy_message:
+        description: 'デプロイメッセージ (オプション)'
+        required: false
+        type: string
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GAR_LOCATION: asia-northeast2 # Google Artifact Registry location
+  SERVICE: flask-workflowtest2-${{ github.event.inputs.environment }} # 環境別のサービス名
+  REGION: asia-northeast2 # Cloud Run region
+
+jobs:
+  deploy:
+    # Workload Identity Federationに必要な権限
+    permissions:
+      contents: read      # リポジトリの内容を読み取り
+      id-token: write     # OIDC トークンを生成して外部認証に使用
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4  # リポジトリのコードをチェックアウト
+
+      - name: デプロイ情報を表示
+        run: |
+          echo "🚀 デプロイ開始"
+          echo "環境: ${{ github.event.inputs.environment }}"
+          echo "ブランチ: ${{ github.ref_name }}"
+          echo "コミット: ${{ github.sha }}"
+          if [ "${{ github.event.inputs.deploy_message }}" != "" ]; then
+            echo "メッセージ: ${{ github.event.inputs.deploy_message }}"
+          fi
+
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v2'  # GCPの認証を実施
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}  # Workload Identity Provider
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}      # サービスアカウントのメールアドレス
+
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: Configure Docker to use gcloud as a credential helper
+        run: |-
+          gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
+
+      # Step 1: 認証テスト
+      - name: テスト - 基本認証
+        run: |
+          gcloud auth list
+          gcloud projects list --limit=1
+
+      # Step 2: Artifact Registry接続テスト  
+      - name: テスト - Artifact Registry
+        run: |
+          gcloud artifacts repositories list --location=${{ env.GAR_LOCATION }}
+
+      # Step 3: Docker認証テスト
+      - name: テスト - Docker認証
+        run: |
+          echo "test" | docker login -u oauth2accesstoken --password-stdin https://${{ env.GAR_LOCATION }}-docker.pkg.dev
