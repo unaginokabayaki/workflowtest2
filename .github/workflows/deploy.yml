@@ -18,7 +18,7 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  GAR_LOCATION: asia-northeast1 # Google Artifact Registry location
+  GAR_LOCATION: asia-northeast2 # Google Artifact Registry location
   SERVICE: flask-workflowtest2-${{ github.event.inputs.environment }} # 環境別のサービス名
   REGION: asia-northeast2 # Cloud Run region
 
