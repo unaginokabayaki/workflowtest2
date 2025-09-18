@@ -1,13 +1,7 @@
 name: Deploy to ECS
 
 on:
-  workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to deploy'
-        required: false
-        default: 'main'
-        type: string
+  workflow_dispatch: {}
 
 # 環境変数定義（全ステップで使用可能）
 env:
