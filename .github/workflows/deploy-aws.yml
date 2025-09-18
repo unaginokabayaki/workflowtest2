@@ -1,0 +1,75 @@
+name: Deploy to ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: false
+        default: 'main'
+        type: string
+
+# 環境変数定義（全ステップで使用可能）
+env:
+  AWS_REGION: ap-northeast-1
+  ECR_REPOSITORY: workflow-demo
+  ECS_SERVICE: workflow-demo-task-definition-service-f9zd3b39
+  ECS_CLUSTER: workflow-demo-cluster
+  ECS_TASK_DEFINITION: workflow-demo-task-definition
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    # ステップ1: GitHubリポジトリのコードをチェックアウト
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # ステップ2: AWS認証情報を設定
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # ステップ3: Amazon ECRにログイン（Dockerコマンドでプッシュするため）
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    # ステップ4: Dockerイメージをビルド、タグ付け、ECRにプッシュ
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    # ステップ5: 現在のECSタスク定義をダウンロード
+    - name: Download task definition
+      run: |
+        aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --query taskDefinition > task-definition.json
+
+    # ステップ6: タスク定義のイメージURLを新しいイメージに更新
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: python-flask
+        image: ${{ steps.build-image.outputs.image }}
+
+    # ステップ7: 更新されたタスク定義をECSにデプロイ（デプロイ完了まで待機する）
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
