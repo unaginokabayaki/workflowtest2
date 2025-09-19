@@ -1,7 +1,16 @@
 name: Deploy to ECS
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deploy target environment'
+        required: true
+        type: choice
+        options:
+          - test1
+          - test2
+          - production
 
 # 環境変数定義（全ステップで使用可能）
 env:
@@ -19,6 +28,14 @@ jobs:
     steps:
     - name: Check AWS CLI version
       run: aws --version
+
+    - name: Select AWS Account
+      run: |
+        case "${{ github.event.inputs.environment }}" in
+          test1) echo "AWS_ACCOUNT_ID=111111111111" >> $GITHUB_ENV ;;
+          test2) echo "AWS_ACCOUNT_ID=222222222222" >> $GITHUB_ENV ;;
+          production) echo "AWS_ACCOUNT_ID=999999999999" >> $GITHUB_ENV ;;
+        esac
 
     # ステップ1: GitHubリポジトリのコードをチェックアウト
     - name: Checkout
@@ -51,8 +68,8 @@ jobs:
     # ステップ5: 現在のECSタスク定義をダウンロードし、不要な項目を削除
     - name: Download and clean task definition
       run: |
-        aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --query taskDefinition > task-definition.json
-        jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' raw-task-def.json > task-definition.json
+        aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --query taskDefinition > raw-task-def.json
+        jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection, .tags)' raw-task-def.json > task-definition.json
 
     # ステップ6: タスク定義のイメージURLを新しいイメージに更新
     - name: Fill in the new image ID in the Amazon ECS task definition
