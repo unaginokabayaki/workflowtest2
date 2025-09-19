@@ -69,7 +69,7 @@ jobs:
     - name: Download and clean task definition
       run: |
         aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --query taskDefinition > raw-task-def.json
-        jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection, .tags)' raw-task-def.json > task-definition.json
+        jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection, .tags)' raw-task-def.json > task-definition.json
 
     # ステップ6: タスク定義のイメージURLを新しいイメージに更新
     - name: Fill in the new image ID in the Amazon ECS task definition
