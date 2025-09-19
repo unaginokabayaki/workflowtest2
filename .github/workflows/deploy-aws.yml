@@ -19,7 +19,7 @@ jobs:
     steps:
     - name: Check AWS CLI version
       run: aws --version
-      
+
     # ステップ1: GitHubリポジトリのコードをチェックアウト
     - name: Checkout
       uses: actions/checkout@v4
@@ -48,10 +48,11 @@ jobs:
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    # ステップ5: 現在のECSタスク定義をダウンロード
-    - name: Download task definition
+    # ステップ5: 現在のECSタスク定義をダウンロードし、不要な項目を削除
+    - name: Download and clean task definition
       run: |
         aws ecs describe-task-definition --task-definition ${{ env.ECS_TASK_DEFINITION }} --query taskDefinition > task-definition.json
+        jq '.taskDefinition | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .placementConstraints, .compatibilities, .registeredAt, .registeredBy, .enableFaultInjection)' raw-task-def.json > task-definition.json
 
     # ステップ6: タスク定義のイメージURLを新しいイメージに更新
     - name: Fill in the new image ID in the Amazon ECS task definition
